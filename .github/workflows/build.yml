@@ -4,14 +4,30 @@ jobs:
   patch:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
 
       - name: Replace ytl_icon
         run: |
-          xcrun assetutil --replace ytl_icon IMG_3160.jpeg Assets.car
+          pip3 install Pillow --quiet
+          python3 << 'EOF'
+          import struct, re
+          from PIL import Image, ImageDraw
 
-      - uses: actions/upload-artifact@v4
+          with open('Assets.car', 'rb') as f:
+              car = bytearray(f.read())
 
-        with:
-          name: patched-assets
-          path: Assets.car
+          img = Image.open('IMG_3160.jpeg').convert('RGBA')
+          w,h = img.size; s = min(w,h)
+          img = img.crop(((w-s)//2,(h-s)//2,(w+s)//2,(h+s)//2)).resize((156,156), Image.LANCZOS)
+          mask = Image.new('L',(156,156),0)
+          ImageDraw.Draw(mask).ellipse((0,0,156,156),fill=255)
+          img.putalpha(mask)
+          raw = img.tobytes()
+
+          import lzfse
+          compressed = lzfse.compress(raw)
+
+          for offset in [0x4C5C, 0xCBCC]:
+              car[offset:offset+len(compressed)] = compressed
+              n = len(compressed)
+              car[offset-8+4:offset-
