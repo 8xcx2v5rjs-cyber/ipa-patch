@@ -8,17 +8,13 @@ jobs:
 
       - name: Replace ytl_icon
         run: |
-          pip3 install Pillow lzfse --break-system-packages --quiet
+          pip3 install Pillow --break-system-packages --quiet
           python3 << 'EOF'
-          import struct, lzfse
+          import struct, subprocess
           from PIL import Image, ImageDraw
 
           with open('Assets.car', 'rb') as f:
               car = bytearray(f.read())
-
-          # Место для @2x: 32568 байт, для @3x: 35160 байт
-          # Подбираем размер изображения чтобы влезло после сжатия
-          # Попробуем 100x100 = 40000 байт raw, сожмётся меньше 32568
 
           for size, mlec_off, data_off, max_bytes in [
               (100, 0x4C2C, 0x4C5C, 32568),
@@ -31,19 +27,22 @@ jobs:
               ImageDraw.Draw(mask).ellipse((0,0,size,size),fill=255)
               img.putalpha(mask)
               raw = img.tobytes()
-              compressed = lzfse.compress(raw)
+
+              with open('/tmp/raw_pixels.bin', 'wb') as f: f.write(raw)
+              subprocess.run(['compression_tool', '-encode', '-a', 'lzfse',
+                              '-i', '/tmp/raw_pixels.bin', '-o', '/tmp/compressed.bin'], check=True)
+              with open('/tmp/compressed.bin', 'rb') as f: compressed = f.read()
               print('size=%d raw=%d compressed=%d max=%d fits=%s' % (
                   size, len(raw), len(compressed), max_bytes, len(compressed)<=max_bytes))
-              if len(compressed) > max_bytes:
-                  print('WARNING: does not fit!')
-                  continue
+
               car[mlec_off+40:mlec_off+44] = struct.pack('<I', (size<<16)|size)
               car[mlec_off+52:mlec_off+56] = struct.pack('<I', len(raw))
-              car[data_off:data_off+len(compressed)] = compressed
-              car[data_off+len(compressed):data_off+max_bytes] = bytes(max_bytes-len(compressed))
+              car[mlec_off+56:mlec_off+60] = compressed[:4]
+              car[data_off+4:data_off+8] = struct.pack('<I', len(raw))
+              car[data_off+8:data_off+8+len(compressed)] = compressed
+              car[data_off+8+len(compressed):data_off+8+max_bytes] = bytes(max_bytes-len(compressed))
 
-          with open('Assets.car', 'wb') as f:
-              f.write(car)
+          with open('Assets.car', 'wb') as f: f.write(car)
           print('Done')
           EOF
 
