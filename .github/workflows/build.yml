@@ -4,13 +4,13 @@ jobs:
   patch:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Replace ytl_icon
         run: |
-          pip3 install Pillow --quiet
+          pip3 install Pillow lzfse --break-system-packages --quiet
           python3 << 'EOF'
-          import struct, re
+          import struct, lzfse
           from PIL import Image, ImageDraw
 
           with open('Assets.car', 'rb') as f:
@@ -24,10 +24,19 @@ jobs:
           img.putalpha(mask)
           raw = img.tobytes()
 
-          import lzfse
           compressed = lzfse.compress(raw)
+          print('Compressed: %d -> %d bytes' % (len(raw), len(compressed)))
 
-          for offset in [0x4C5C, 0xCBCC]:
-              car[offset:offset+len(compressed)] = compressed
-              n = len(compressed)
-              car[offset-8+4:offset-
+          for mlec_offset, data_offset in [(0x4C2C, 0x4C5C), (0xCB9C, 0xCBCC)]:
+              car[mlec_offset+52:mlec_offset+56] = struct.pack('<I', len(raw))
+              car[data_offset:data_offset+len(compressed)] = compressed
+
+          with open('Assets.car', 'wb') as f:
+              f.write(car)
+          print('Done')
+          EOF
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: patched-assets
+          path: Assets.car
