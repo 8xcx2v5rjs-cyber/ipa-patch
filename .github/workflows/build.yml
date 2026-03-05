@@ -10,7 +10,8 @@ jobs:
         run: |
           xcrun assetutil --replace ytl_icon IMG_3160.jpeg Assets.car
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
+
         with:
           name: patched-assets
           path: Assets.car
