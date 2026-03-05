@@ -1,0 +1,16 @@
+name: Patch Assets
+on: [push]
+jobs:
+  patch:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Replace ytl_icon
+        run: |
+          xcrun assetutil --replace ytl_icon IMG_3160.jpeg Assets.car
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: patched-assets
+          path: Assets.car
